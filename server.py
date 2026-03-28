@@ -58,18 +58,28 @@ def load_titles_cache():
 def save_titles_cache(cache):
     TITLES_CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=2))
 
-# ── AI 生成标题 ──────────────────────────────────────
-def generate_title(uuid: str, summary: str, first_message: str) -> str:
+# ── AI 生成标题 + 标签（合并一次调用）──────────────────
+def generate_title_and_tag(uuid: str, summary: str, first_message: str,
+                            existing_tags: list) -> dict:
+    """返回 {'title': str, 'tag': str}，tag 从 existing_tags 中选或新建"""
     if not API_CFG['api_key']:
-        return ''
-    prompt = f"""请用 10 字以内的中文为以下对话起一个简洁的标题，直接输出标题文字，不要引号、不要标点、不要解释。
+        return {'title': '', 'tag': ''}
 
-对话开头：{first_message[:100]}
-对话摘要：{summary[:200]}"""
+    existing_str = ', '.join(existing_tags) if existing_tags else '(none yet)'
+    prompt = f"""You are helping categorize Claude Code conversations.
+
+Conversation start: {first_message[:120]}
+Summary: {summary[:250]}
+
+Tasks (reply in JSON only, no explanation):
+1. "title": A concise title in 8 words or less, in the same language as the conversation.
+2. "tag": ONE topic tag. Reuse an existing tag if it fits well (existing: {existing_str}). Otherwise create a new short tag (1-3 words, English preferred). Keep total unique tags across all sessions under 20.
+
+Reply format: {{"title": "...", "tag": "..."}}"""
 
     payload = json.dumps({
         "model": API_CFG['haiku'],
-        "max_tokens": 50,
+        "max_tokens": 80,
         "messages": [{"role": "user", "content": prompt}]
     }).encode()
 
@@ -84,43 +94,23 @@ def generate_title(uuid: str, summary: str, first_message: str) -> str:
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-            return data['content'][0]['text'].strip()
+            text = json.loads(resp.read())['content'][0]['text'].strip()
+            # 提取 JSON
+            m = re.search(r'\{[^}]+\}', text, re.DOTALL)
+            if m:
+                d = json.loads(m.group())
+                return {'title': d.get('title', '').strip(), 'tag': d.get('tag', '').strip()}
     except Exception as e:
-        print(f"Title gen error: {e}")
-        return ''
+        print(f"Title/tag gen error: {e}")
+    return {'title': '', 'tag': ''}
 
-# ── 标签规则 ─────────────────────────────────────────
-TAG_RULES = [
-    ("Coding",      ["code", "bug", "fix", "error", "function", "class", "api", "sql", "script",
-                     "代码", "报错", "调试", "接口", "函数", "脚本"]),
-    ("AI / LLM",    ["claude", "gpt", "llm", "prompt", "agent", "model", "embedding", "rag",
-                     "anthropic", "openai", "gemini", "ai", "模型", "提示词"]),
-    ("DevOps",      ["deploy", "docker", "ci", "cd", "git", "github", "server", "nginx", "aws",
-                     "部署", "服务器", "容器", "运维"]),
-    ("Frontend",    ["react", "vue", "html", "css", "javascript", "typescript", "ui", "component",
-                     "前端", "页面", "组件", "样式"]),
-    ("Data",        ["database", "sql", "query", "csv", "excel", "pandas", "chart", "analysis",
-                     "数据", "表格", "分析", "查询"]),
-    ("Writing",     ["write", "draft", "summary", "translate", "email", "document", "report",
-                     "写作", "总结", "翻译", "文档", "报告", "邮件"]),
-    ("Tools",       ["mcp", "vscode", "terminal", "install", "config", "setup", "plugin", "brew",
-                     "配置", "安装", "终端", "插件", "工具"]),
-    ("Learning",    ["explain", "how", "what", "why", "difference", "example", "tutorial",
-                     "解释", "怎么", "什么是", "区别", "教程"]),
-    ("Career",      ["resume", "interview", "job", "skill", "career", "salary",
-                     "简历", "面试", "求职", "职业", "薪资"]),
-    ("Life",        ["travel", "food", "health", "hobby", "movie", "music", "book",
-                     "旅行", "美食", "健康", "爱好", "电影", "音乐", "读书"]),
-]
+# 向后兼容旧接口
+def generate_title(uuid: str, summary: str, first_message: str) -> str:
+    return generate_title_and_tag(uuid, summary, first_message, []).get('title', '')
 
 def auto_tags(text: str) -> list:
-    text_lower = text.lower()
-    scores = [(sum(1 for kw in kws if kw in text_lower), tag)
-              for tag, kws in TAG_RULES]
-    scores = [(s, t) for s, t in scores if s > 0]
-    scores.sort(reverse=True)
-    return [t for _, t in scores[:3]] or ["其他"]
+    """无 API Key 时的 fallback：返回空列表，页面显示无标签"""
+    return []
 
 # ── 文本清洗 ─────────────────────────────────────────
 def clean_text(text: str) -> str:
@@ -411,18 +401,24 @@ class Handler(BaseHTTPRequestHandler):
             uuid = body.get('uuid', '')
             summary = body.get('summary', '')
             first_message = body.get('first_message', '')
-            title = generate_title(uuid, summary, first_message)
-            if title:
-                cache = load_titles_cache()
-                cache[uuid] = title
-                save_titles_cache(cache)
-                # 同步到 sessions_cache
+            existing_tags = body.get('existing_tags', [])
+            result = generate_title_and_tag(uuid, summary, first_message, existing_tags)
+            title = result.get('title', '')
+            tag = result.get('tag', '')
+            if title or tag:
                 sc = load_sessions_cache()
                 for v in sc.values():
                     if isinstance(v, dict) and v.get('uuid') == uuid:
-                        v['title'] = title
+                        if title:
+                            v['title'] = title
+                        if tag:
+                            v['tags'] = [tag]
                 save_sessions_cache(sc)
-            self.send_json({'title': title})
+                if title:
+                    cache = load_titles_cache()
+                    cache[uuid] = title
+                    save_titles_cache(cache)
+            self.send_json({'title': title, 'tag': tag})
 
         else:
             self.send_response(404)

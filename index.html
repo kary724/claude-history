@@ -451,10 +451,15 @@ function renderList(items) {
   list.innerHTML = html;
 }
 
-// ── AI 标题生成 ───────────────────────────────────
+// ── AI 标题 + 标签生成 ────────────────────────────
+function getExistingTags() {
+  const tags = new Set();
+  all.forEach(s => (s.tags||[]).forEach(t => tags.add(t)));
+  return [...tags];
+}
+
 async function requestMissingTitles() {
   const needTitle = all.filter(s => !s.title && s.summary && s.uuid);
-  // 批量，每次最多5个并发
   for (let i = 0; i < needTitle.length; i += 5) {
     const batch = needTitle.slice(i, i+5);
     await Promise.all(batch.map(s => fetchTitle(s)));
@@ -466,23 +471,41 @@ async function fetchTitle(s) {
     const r = await fetch('/api/generate-title', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ uuid: s.uuid, summary: s.summary, first_message: s.first_message })
+      body: JSON.stringify({
+        uuid: s.uuid,
+        summary: s.summary,
+        first_message: s.first_message,
+        existing_tags: getExistingTags()
+      })
     });
     const d = await r.json();
     if (d.title) {
       s.title = d.title;
-      // 更新 DOM 中对应的标题
       const el = document.querySelector(`.s-title[data-uuid="${s.uuid}"]`);
       if (el) {
         el.textContent = d.title;
         el.classList.remove('generating');
         el.removeAttribute('data-uuid');
       }
-      // 如果当前正在查看此会话，更新右侧标题
       if (activeUuid === s.uuid) {
         const ct = document.querySelector('.c-title');
         if (ct) ct.textContent = d.title;
       }
+    }
+    // 更新标签
+    if (d.tag) {
+      s.tags = [d.tag];
+      // 如果是新标签，加入左侧标签栏
+      const row = document.getElementById('tagRow');
+      if (row && ![...row.querySelectorAll('.tag-pill')].some(b => b.textContent === d.tag)) {
+        const b = document.createElement('button');
+        b.className = 'tag-pill';
+        b.textContent = d.tag;
+        b.onclick = () => setTag(d.tag, b);
+        row.appendChild(b);
+      }
+      // 更新卡片上的标签显示
+      doFilter();
     }
   } catch {}
 }
