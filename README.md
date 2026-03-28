@@ -1,44 +1,45 @@
 # Claude History
 
-Claude Code 对话历史可视化管理工具。用浏览器查看、搜索、管理你的所有 Claude Code 对话记录。
+A local web viewer for browsing, searching, and managing your Claude Code conversation history.
 
+![screenshot](screenshot.png)
 
-## 功能
+## Features
 
-- 📋 浏览所有历史对话，按日期分组
-- 🔍 实时搜索对话内容
-- 🏷️ 自动打标签分类（产品设计、代码开发等）
-- 🧠 调用 Claude API 自动生成对话标题（缓存到本地，不重复调用）
-- 📊 显示每个会话的 token 消耗（输入/缓存/输出）
-- 🗑️ 一键将对话移到回收站
-- ▶️ 点击按钮在终端里恢复对话（`claude --resume`）
+- 📋 Browse all past conversations, grouped by date
+- 🔍 Real-time search across conversation content
+- 🏷️ Auto-tagging by topic (IoT, Product Design, Coding, etc.)
+- 🧠 AI-generated titles via Claude API (cached locally, no repeated calls)
+- 📊 Token usage stats per session (input / cache / output)
+- 🗑️ Move conversations to Trash with one click
+- ▶️ Resume any conversation in terminal with `claude --resume`
 
-## 环境要求
+## Requirements
 
 - macOS
 - Python 3.9+
-- Claude Code 已安装（`~/.claude/` 目录存在）
+- Claude Code installed (`~/.claude/` directory exists)
 
-## 安装
+## Installation
 
 ```bash
-git clone https://github.com/your-username/claude-history.git
+git clone https://github.com/kary724/claude-history.git
 cd claude-history
 ```
 
-不需要安装任何依赖，只用 Python 标准库。
+No dependencies required — uses Python standard library only.
 
-## 使用
+## Usage
 
 ```bash
 python3 server.py
 ```
 
-然后浏览器打开 [http://localhost:8765](http://localhost:8765)
+Then open [http://localhost:8765](http://localhost:8765) in your browser.
 
-### 可选：桌面快捷方式（macOS）
+### macOS Quick Launch (optional)
 
-在桌面创建 `Claude History.command` 文件，内容如下：
+Create a file on your Desktop named `Claude History.command`:
 
 ```bash
 #!/bin/zsh
@@ -53,13 +54,13 @@ exit
 chmod +x ~/Desktop/Claude\ History.command
 ```
 
-双击即可启动。
+Double-click to launch.
 
-## AI 标题生成（可选）
+## AI Title Generation (optional)
 
-工具会自动调用 Claude API 为每个对话生成标题，结果缓存到 `titles.json`，不重复调用。
+The tool automatically generates a short title for each conversation using the Claude API. Titles are cached in `titles.json` and never re-generated.
 
-需要在 `~/.claude/settings.json` 里配置 API Key（Claude Code 用户通常已配置好）：
+Requires an API key in `~/.claude/settings.json` (already configured if you use Claude Code):
 
 ```json
 {
@@ -70,21 +71,21 @@ chmod +x ~/Desktop/Claude\ History.command
 }
 ```
 
-若无 API Key，工具仍可正常使用，只是标题会显示对话的第一句话。
+Without an API key, the tool still works — conversation titles fall back to the first message.
 
-## 文件说明
+## Files
 
 ```
 claude-history/
-  server.py     # Python 后端服务器
-  index.html    # 前端页面
-  README.md     # 本文件
+  server.py     # Python backend server
+  index.html    # Frontend UI
+  README.md     # This file
 ```
 
-`titles.json` 和 `sessions_cache.json` 会在首次运行时自动生成，无需手动创建。
+`titles.json` and `sessions_cache.json` are auto-generated on first run.
 
-## 注意事项
+## Notes
 
-- 删除操作会将文件移入 macOS 回收站，不会直接删除
-- 服务器只监听本地 localhost，不会暴露到外网
-- 对话数据完全在本地，不会上传到任何服务器（除 AI 标题生成时发送摘要到 Claude API）
+- Deleted conversations are moved to the macOS Trash, not permanently deleted
+- The server only listens on localhost — not exposed to the network
+- All data stays local; only conversation summaries are sent to the Claude API for title generation
