@@ -108,13 +108,19 @@
   .tag-pill:hover { border-color: var(--purple-l); color: var(--purple); }
   .tag-pill.active { background: var(--purple); border-color: var(--purple); color: white; }
 
+  .list-wrap {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+  }
   .session-list {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 8px 12px;
+    scrollbar-width: none;
   }
-  .session-list::-webkit-scrollbar { width: 4px; }
-  .session-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .session-list::-webkit-scrollbar { display: none; }
 
   .date-sep {
     font-size: 10.5px;
@@ -297,16 +303,22 @@
   .dot-output { background: var(--green); }
 
   /* messages */
+  .msgs-wrap {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+  }
   .messages {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 24px 28px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    scrollbar-width: none;
   }
-  .messages::-webkit-scrollbar { width: 4px; }
-  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .messages::-webkit-scrollbar { display: none; }
 
   .msg {
     display: flex;
@@ -347,34 +359,37 @@
     gap: 12px;
   }
 
-  /* ── 进度条 ── */
-  .scroll-track {
-    position: relative;
-    height: 3px;
-    background: var(--border);
+  /* ── 自定义滚动条 ── */
+  .custom-scroll {
+    width: 6px;
     flex-shrink: 0;
+    position: relative;
     cursor: pointer;
-    border-radius: 2px;
+    background: transparent;
+    transition: width 0.15s;
   }
-  .sidebar .scroll-track {
-    margin: 0 12px;
+  .custom-scroll:hover,
+  .custom-scroll.dragging {
+    width: 8px;
   }
-  .content .scroll-track {
-    margin: 0 28px 0;
-  }
-  .scroll-thumb {
+  .custom-thumb {
     position: absolute;
-    top: 0;
     left: 0;
-    height: 100%;
-    background: var(--purple-l);
-    border-radius: 2px;
-    min-width: 24px;
-    transition: background 0.1s;
-    pointer-events: none;
+    right: 0;
+    border-radius: 4px;
+    background: var(--border);
+    min-height: 28px;
+    transition: background 0.15s, min-height 0.1s;
+    cursor: grab;
   }
-  .scroll-track:hover .scroll-thumb { background: var(--purple); }
-  .scroll-track.dragging .scroll-thumb { background: var(--purple); }
+  .custom-scroll:hover .custom-thumb,
+  .custom-scroll.dragging .custom-thumb {
+    background: var(--purple-l);
+  }
+  .custom-scroll.dragging .custom-thumb {
+    background: var(--purple);
+    cursor: grabbing;
+  }
 
   /* UUID 路径 chip */
   .path-chip {
@@ -415,11 +430,13 @@
       </div>
     </div>
 
-    <div class="scroll-track" id="listTrack" title="拖动跳转">
-      <div class="scroll-thumb" id="listThumb"></div>
-    </div>
-    <div class="session-list" id="list">
-      <div class="empty" style="height:200px"><p>加载中…</p></div>
+    <div class="list-wrap">
+      <div class="session-list" id="list">
+        <div class="empty" style="height:200px"><p>加载中…</p></div>
+      </div>
+      <div class="custom-scroll" id="listTrack">
+        <div class="custom-thumb" id="listThumb"></div>
+      </div>
     </div>
 
     <div class="sidebar-foot" id="foot"></div>
@@ -611,10 +628,11 @@ async function pick(uuid) {
       </div>`;
   }
 
-  // 功能4: 构建文件路径
-  const filePath = buildFilePath(s);
-  const pathChip = filePath
-    ? `<span class="path-chip" onclick="copyPath(this,'${filePath.replace(/'/g, "\\'")}')" title="点击复制路径">${esc(filePath)}</span>`
+  // 功能4: 构建文件路径（显示用 ~，复制用真实完整路径）
+  const displayPath = buildFilePath(s);
+  const realPath = s?.filepath || '';
+  const pathChip = displayPath
+    ? `<span class="path-chip" onclick="copyPath(this,'${realPath.replace(/'/g, "\\'")}')" title="点击复制完整路径">${esc(displayPath)}</span>`
     : '';
 
   document.getElementById('content').innerHTML = `
@@ -633,11 +651,13 @@ async function pick(uuid) {
         ${tokenHtml}
       </div>
     </div>
-    <div class="scroll-track" id="msgsTrack" title="拖动跳转">
-      <div class="scroll-thumb" id="msgsThumb"></div>
-    </div>
-    <div class="messages" id="msgs">
-      <div class="empty" style="height:200px"><p>加载中…</p></div>
+    <div class="msgs-wrap">
+      <div class="messages" id="msgs">
+        <div class="empty" style="height:200px"><p>加载中…</p></div>
+      </div>
+      <div class="custom-scroll" id="msgsTrack">
+        <div class="custom-thumb" id="msgsThumb"></div>
+      </div>
     </div>`;
 
   try {
@@ -706,41 +726,47 @@ function pruneEmptyTags() {
   });
 }
 
-// ── 功能3: 进度条逻辑 ──────────────────────────────
+// ── 自定义滚动条逻辑 ──────────────────────────────
 function bindScrollBar(scrollEl, track, thumb) {
   function updateThumb() {
     const { scrollTop, scrollHeight, clientHeight } = scrollEl;
-    const ratio = scrollHeight <= clientHeight ? 1 : scrollTop / (scrollHeight - clientHeight);
-    const thumbW = Math.max(24, (clientHeight / scrollHeight) * track.offsetWidth);
-    const maxLeft = track.offsetWidth - thumbW;
-    thumb.style.width = thumbW + 'px';
-    thumb.style.left = (ratio * maxLeft) + 'px';
+    if (scrollHeight <= clientHeight) {
+      track.style.display = 'none';
+      return;
+    }
+    track.style.display = '';
+    const thumbH = Math.max(28, (clientHeight / scrollHeight) * track.clientHeight);
+    const maxTop = track.clientHeight - thumbH;
+    const ratio = scrollTop / (scrollHeight - clientHeight);
+    thumb.style.height = thumbH + 'px';
+    thumb.style.top = (ratio * maxTop) + 'px';
   }
 
   scrollEl.addEventListener('scroll', updateThumb, { passive: true });
-  // 初始化
   requestAnimationFrame(updateThumb);
+  // 内容变化时也更新（如消息加载完）
+  const ro = new ResizeObserver(updateThumb);
+  ro.observe(scrollEl);
 
   // 点击轨道跳转
-  function seekTo(clientX) {
+  function seekTo(clientY) {
     const rect = track.getBoundingClientRect();
-    const thumbW = thumb.offsetWidth;
-    const maxLeft = rect.width - thumbW;
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left - thumbW/2) / maxLeft));
+    const thumbH = thumb.offsetHeight;
+    const maxTop = rect.height - thumbH;
+    const ratio = Math.min(1, Math.max(0, (clientY - rect.top - thumbH / 2) / maxTop));
     scrollEl.scrollTop = ratio * (scrollEl.scrollHeight - scrollEl.clientHeight);
   }
 
-  // 拖动
   let dragging = false;
   track.addEventListener('mousedown', e => {
     dragging = true;
     track.classList.add('dragging');
-    seekTo(e.clientX);
+    seekTo(e.clientY);
     e.preventDefault();
   });
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    seekTo(e.clientX);
+    seekTo(e.clientY);
   });
   document.addEventListener('mouseup', () => {
     if (!dragging) return;
@@ -759,7 +785,7 @@ function buildFilePath(s) {
 }
 
 function copyPath(el, path) {
-  navigator.clipboard.writeText(path.replace('~', (navigator.platform.includes('Mac') ? '' : '') + '~')).then(() => {
+  navigator.clipboard.writeText(path).then(() => {
     el.classList.add('copied');
     const orig = el.textContent;
     el.textContent = '已复制 ✓';
