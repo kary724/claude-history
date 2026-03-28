@@ -1,93 +1,23 @@
 # Claude History
 
+一个方便地找回、并**继续**你的 Claude Code 对话历史的 Web 工具
+
 A local web app to browse, search, and **resume** your Claude Code conversation history — pick up any past conversation right where you left off.
 
-一个本地 Web 工具，用于浏览、搜索和**继续**你的 Claude Code 对话历史 —— 随时找到并接续任意一个历史会话。
-
-![screenshot](screenshot.png)
+![04e62361bbc18da1d1ef39e1678a59f6](https://github.com/user-attachments/assets/c9a05c1e-240d-445b-b1d9-63d458910a88)
 
 ---
 
-## English
-
-### Features
-
-- 📋 Browse all past conversations, grouped by date
-- 🔍 Real-time search across conversation content
-- 🏷️ Auto-tagging by topic (IoT, Product Design, Coding, etc.)
-- 🧠 AI-generated titles via Claude API (cached locally, no repeated calls)
-- 📊 Token usage stats per session (input / cache / output)
-- 🗑️ Move conversations to Trash with one click
-- ▶️ Resume any conversation in terminal with `claude --resume`
-
-### Requirements
-
-- macOS
-- Python 3.9+
-- Claude Code installed (`~/.claude/` directory exists)
-
-### Installation
-
-```bash
-git clone https://github.com/kary724/claude-history.git
-cd claude-history
-```
-
-No dependencies required — uses Python standard library only.
-
-### Usage
-
-```bash
-python3 server.py
-```
-
-Open [http://localhost:8765](http://localhost:8765) in your browser.
-
-### macOS Quick Launch (optional)
-
-Create `Claude History.command` on your Desktop:
-
-```bash
-#!/bin/zsh
-lsof -ti:8765 | xargs kill -9 2>/dev/null
-nohup python3 /path/to/claude-history/server.py > /tmp/claude-history.log 2>&1 &
-sleep 1.5
-open http://localhost:8765
-exit
-```
-
-```bash
-chmod +x ~/Desktop/Claude\ History.command
-```
-
-### AI Title Generation (optional)
-
-Requires an API key in `~/.claude/settings.json` (already set up if you use Claude Code):
-
-```json
-{
-  "env": {
-    "ANTHROPIC_API_KEY": "sk-...",
-    "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
-  }
-}
-```
-
-Without an API key, titles fall back to the first message of each conversation.
-
----
-
-## 中文说明
+## 中文
 
 ### 功能
 
-- 📋 浏览所有历史对话，按日期分组
-- 🔍 实时搜索对话内容
-- 🏷️ 自动按主题打标签（IoT协议、产品设计、代码开发等）
-- 🧠 调用 Claude API 自动生成对话标题（结果缓存到本地，不重复调用）
-- 📊 显示每个会话的 token 消耗（输入 / 缓存 / 输出）
-- 🗑️ 一键将对话移到回收站
-- ▶️ 点击按钮在终端里通过 `claude --resume` 继续对话
+- 📋 记录所有与Claude Code的历史对话，方便追溯所有方案的思路过程
+- 🧠 调用 Claude API 自动生成对话标题
+- 🏷️ 自动按主题打标签（如 产品设计、代码开发等）
+- 🔍 支持根据标签、关键词搜索对话内容
+- 🗑️ 一键将多余对话移到回收站
+- **▶️ 想继续某个话题时，随时可以找回某次对话，并一键跳转终端继续。不需要在新的窗口里重复聊背景**
 
 ### 环境要求
 
@@ -145,6 +75,75 @@ chmod +x ~/Desktop/Claude\ History.command
 ```
 
 没有 API Key 时工具仍可正常使用，标题会显示每个对话的第一句话。
+
+---
+
+## English
+
+### Features
+
+- 📋 Browse all past conversations, grouped by date
+- 🔍 Real-time search across conversation content
+- 🏷️ Auto-tagging by topic (Product Design, Coding, etc.)
+- 🧠 AI-generated titles via Claude API (cached locally, no repeated calls)
+- 📊 Token usage stats per session (input / cache / output)
+- 🗑️ Move conversations to Trash with one click
+- **▶️ Resume any conversation in terminal with `claude --resume`**
+
+### Requirements
+
+- macOS
+- Python 3.9+
+- Claude Code installed (`~/.claude/` directory exists)
+
+### Installation
+
+```bash
+git clone https://github.com/kary724/claude-history.git
+cd claude-history
+```
+
+No dependencies required — uses Python standard library only.
+
+### Usage
+
+```bash
+python3 server.py
+```
+
+Open [http://localhost:8765](http://localhost:8765) in your browser.
+
+### macOS Quick Launch (optional)
+
+Create `Claude History.command` on your Desktop:
+
+```bash
+#!/bin/zsh
+lsof -ti:8765 | xargs kill -9 2>/dev/null
+nohup python3 /path/to/claude-history/server.py > /tmp/claude-history.log 2>&1 &
+sleep 1.5
+open http://localhost:8765
+exit
+```
+
+```bash
+chmod +x ~/Desktop/Claude\ History.command
+```
+
+### AI Title Generation (optional)
+
+Requires an API key in `~/.claude/settings.json` (already set up if you use Claude Code):
+
+```json
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "sk-...",
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
+  }
+}
+```
+
+Without an API key, titles fall back to the first message of each conversation.
 
 ---
 
