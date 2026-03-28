@@ -207,6 +207,7 @@ def parse_session(filepath: Path, titles_cache: dict):
         return {
             'uuid': uuid,
             'filename': filepath.name,
+            'filepath': str(filepath),
             'date': date_str,
             'time': time_str,
             'first_message': first_message,
@@ -255,6 +256,9 @@ def get_sessions() -> list:
             uuid = s.get('uuid', '')
             if uuid and titles_cache.get(uuid):
                 s['title'] = titles_cache[uuid]
+            # 补全旧缓存中缺失的 filepath
+            if not s.get('filepath'):
+                s['filepath'] = str(f)
             sessions.append(s)
         else:
             # 需要重新解析

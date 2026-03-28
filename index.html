@@ -346,6 +346,57 @@
     display: flex;
     gap: 12px;
   }
+
+  /* ── 进度条 ── */
+  .scroll-track {
+    position: relative;
+    height: 3px;
+    background: var(--border);
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .sidebar .scroll-track {
+    margin: 0 12px;
+  }
+  .content .scroll-track {
+    margin: 0 28px 0;
+  }
+  .scroll-thumb {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--purple-l);
+    border-radius: 2px;
+    min-width: 24px;
+    transition: background 0.1s;
+    pointer-events: none;
+  }
+  .scroll-track:hover .scroll-thumb { background: var(--purple); }
+  .scroll-track.dragging .scroll-thumb { background: var(--purple); }
+
+  /* UUID 路径 chip */
+  .path-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    color: var(--text-3);
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .path-chip:hover { border-color: var(--purple-l); color: var(--purple); }
+  .path-chip.copied { border-color: var(--green); color: var(--green); }
 </style>
 </head>
 <body>
@@ -364,6 +415,9 @@
       </div>
     </div>
 
+    <div class="scroll-track" id="listTrack" title="拖动跳转">
+      <div class="scroll-thumb" id="listThumb"></div>
+    </div>
     <div class="session-list" id="list">
       <div class="empty" style="height:200px"><p>加载中…</p></div>
     </div>
@@ -391,6 +445,12 @@ async function load() {
   buildTags();
   renderFoot();
   doFilter();
+  // 功能3: 绑定左侧列表进度条
+  const listEl = document.getElementById('list');
+  const listTrack = document.getElementById('listTrack');
+  if (listEl && listTrack) {
+    bindScrollBar(listEl, listTrack, document.getElementById('listThumb'));
+  }
   // 自动选中最近的对话
   if (all.length > 0) pick(all[0].uuid);
   // 触发没有标题的会话生成
@@ -478,9 +538,10 @@ function getExistingTags() {
 }
 
 async function requestMissingTitles() {
-  const needTitle = all.filter(s => !s.title && s.summary && s.uuid);
-  for (let i = 0; i < needTitle.length; i += 5) {
-    const batch = needTitle.slice(i, i+5);
+  // Bug1: 有 title 但无 tag，或无 title 都需要触发生成
+  const needGen = all.filter(s => s.uuid && s.summary && (!s.title || !(s.tags||[]).length));
+  for (let i = 0; i < needGen.length; i += 5) {
+    const batch = needGen.slice(i, i+5);
     await Promise.all(batch.map(s => fetchTitle(s)));
   }
 }
@@ -550,6 +611,12 @@ async function pick(uuid) {
       </div>`;
   }
 
+  // 功能4: 构建文件路径
+  const filePath = buildFilePath(s);
+  const pathChip = filePath
+    ? `<span class="path-chip" onclick="copyPath(this,'${filePath.replace(/'/g, "\\'")}')" title="点击复制路径">${esc(filePath)}</span>`
+    : '';
+
   document.getElementById('content').innerHTML = `
     <div class="c-head">
       <div class="c-head-row">
@@ -562,8 +629,12 @@ async function pick(uuid) {
       <div class="c-meta">
         <span class="c-meta-text">${s?.date||''} ${s?.time||''}${model}${s?.message_count?' · '+s.message_count+' 条':''}</span>
         ${tags}
+        ${pathChip}
         ${tokenHtml}
       </div>
+    </div>
+    <div class="scroll-track" id="msgsTrack" title="拖动跳转">
+      <div class="scroll-thumb" id="msgsThumb"></div>
     </div>
     <div class="messages" id="msgs">
       <div class="empty" style="height:200px"><p>加载中…</p></div>
@@ -573,6 +644,12 @@ async function pick(uuid) {
     const r = await fetch(`/api/session/${uuid}/messages`);
     const msgs = await r.json();
     renderMsgs(msgs);
+    // 功能3: 绑定右侧消息区进度条
+    const msgsEl = document.getElementById('msgs');
+    const msgsTrack = document.getElementById('msgsTrack');
+    if (msgsEl && msgsTrack) {
+      bindScrollBar(msgsEl, msgsTrack, document.getElementById('msgsThumb'));
+    }
   } catch {
     document.getElementById('msgs').innerHTML = '<div class="empty"><p>⚠ 加载失败</p></div>';
   }
@@ -602,10 +679,92 @@ async function doDelete(uuid) {
     activeUuid = null;
     renderFoot();
     doFilter();
+    // Bug2: 删除后清理已无对话的标签
+    pruneEmptyTags();
     document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">✓</div><p>已移到回收站</p></div>';
   } else {
     alert('删除失败：'+(d.error||'未知'));
   }
+}
+
+// Bug2: 移除已无对话的标签 pill
+function pruneEmptyTags() {
+  const usedTags = new Set();
+  all.forEach(s => (s.tags||[]).forEach(t => usedTags.add(t)));
+  const row = document.getElementById('tagRow');
+  if (!row) return;
+  row.querySelectorAll('.tag-pill').forEach(b => {
+    if (b.textContent === '全部') return;
+    if (!usedTags.has(b.textContent)) {
+      // 如果当前筛选的就是这个要删除的标签，切回全部
+      if (currentTag === b.textContent) {
+        currentTag = 'all';
+        row.querySelector('.tag-pill').classList.add('active');
+      }
+      b.remove();
+    }
+  });
+}
+
+// ── 功能3: 进度条逻辑 ──────────────────────────────
+function bindScrollBar(scrollEl, track, thumb) {
+  function updateThumb() {
+    const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+    const ratio = scrollHeight <= clientHeight ? 1 : scrollTop / (scrollHeight - clientHeight);
+    const thumbW = Math.max(24, (clientHeight / scrollHeight) * track.offsetWidth);
+    const maxLeft = track.offsetWidth - thumbW;
+    thumb.style.width = thumbW + 'px';
+    thumb.style.left = (ratio * maxLeft) + 'px';
+  }
+
+  scrollEl.addEventListener('scroll', updateThumb, { passive: true });
+  // 初始化
+  requestAnimationFrame(updateThumb);
+
+  // 点击轨道跳转
+  function seekTo(clientX) {
+    const rect = track.getBoundingClientRect();
+    const thumbW = thumb.offsetWidth;
+    const maxLeft = rect.width - thumbW;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left - thumbW/2) / maxLeft));
+    scrollEl.scrollTop = ratio * (scrollEl.scrollHeight - scrollEl.clientHeight);
+  }
+
+  // 拖动
+  let dragging = false;
+  track.addEventListener('mousedown', e => {
+    dragging = true;
+    track.classList.add('dragging');
+    seekTo(e.clientX);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    seekTo(e.clientX);
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    track.classList.remove('dragging');
+  });
+}
+
+// 功能4: 构建文件路径（优先用服务端返回的完整路径）
+function buildFilePath(s) {
+  if (!s) return '';
+  const p = s.filepath || s.filename;
+  if (!p) return '';
+  // 将 home 目录替换为 ~
+  return p.replace(/^\/Users\/[^/]+/, '~');
+}
+
+function copyPath(el, path) {
+  navigator.clipboard.writeText(path.replace('~', (navigator.platform.includes('Mac') ? '' : '') + '~')).then(() => {
+    el.classList.add('copied');
+    const orig = el.textContent;
+    el.textContent = '已复制 ✓';
+    setTimeout(() => { el.classList.remove('copied'); el.textContent = orig; }, 1500);
+  });
 }
 
 // ── Utils ─────────────────────────────────────────
