@@ -4,7 +4,8 @@
 
 A local web app to browse, search, and **resume** your Claude Code conversation history — pick up any past conversation right where you left off.
 
-![04e62361bbc18da1d1ef39e1678a59f6](https://github.com/user-attachments/assets/c9a05c1e-240d-445b-b1d9-63d458910a88)
+![6229e1893d7dd28daeae40cbd5e4141e](https://github.com/user-attachments/assets/80989218-93ae-438d-bbe1-03ee71bfd39f)
+
 
 ---
 
