@@ -364,7 +364,7 @@
     width: 6px;
     flex-shrink: 0;
     position: relative;
-    cursor: pointer;
+    cursor: default;
     background: transparent;
     transition: width 0.15s;
   }
@@ -377,41 +377,55 @@
     left: 0;
     right: 0;
     border-radius: 4px;
-    background: var(--border);
+    background: var(--text-4);
     min-height: 28px;
-    transition: background 0.15s, min-height 0.1s;
-    cursor: grab;
+    transition: background 0.15s;
+    cursor: default;
   }
   .custom-scroll:hover .custom-thumb,
   .custom-scroll.dragging .custom-thumb {
-    background: var(--purple-l);
-  }
-  .custom-scroll.dragging .custom-thumb {
     background: var(--purple);
-    cursor: grabbing;
   }
 
-  /* UUID 路径 chip */
-  .path-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
+  /* 续聊方式区块 */
+  .resume-ways {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .resume-way {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .resume-way-label {
+    font-size: 12px;
+    color: var(--text-3);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .resume-way-label strong {
+    color: var(--text-2);
+    font-weight: 600;
+  }
+  .vscode-hint {
+    flex: 1;
+    padding: 7px 12px;
     background: var(--surface-2);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 10.5px;
+    border-radius: var(--r-sm);
+    font-size: 12px;
     font-family: 'SF Mono', 'Menlo', monospace;
     color: var(--text-3);
     cursor: pointer;
-    white-space: nowrap;
-    max-width: 340px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
     transition: border-color 0.15s, color 0.15s;
   }
-  .path-chip:hover { border-color: var(--purple-l); color: var(--purple); }
-  .path-chip.copied { border-color: var(--green); color: var(--green); }
+  .vscode-hint:hover { border-color: var(--purple-l); color: var(--purple); }
+  .vscode-hint.copied { border-color: var(--green); color: var(--green); }
 </style>
 </head>
 <body>
@@ -476,7 +490,8 @@ async function load() {
 
 function buildTags() {
   const cnt = {};
-  all.forEach(s => (s.tags||[]).forEach(t => cnt[t] = (cnt[t]||0)+1));
+  // 只统计有日期（会显示在列表里）的对话的标签，避免空对话的标签出现在标签栏
+  all.filter(s => s.date).forEach(s => (s.tags||[]).forEach(t => cnt[t] = (cnt[t]||0)+1));
   const row = document.getElementById('tagRow');
   // 先清空所有非"全部"标签，再重建，避免空标签残留
   row.querySelectorAll('.tag-pill:not(:first-child)').forEach(b => b.remove());
@@ -531,7 +546,7 @@ function renderList(items) {
     return;
   }
   const groups = {};
-  valid.forEach(s => (groups[s.date] = groups[s.date]||[]).push(s));
+  valid.forEach(s => { const d = s.last_date || s.date; (groups[d] = groups[d]||[]).push(s); });
 
   let html = '';
   Object.entries(groups).forEach(([date, arr]) => {
@@ -548,7 +563,7 @@ function renderList(items) {
         <div class="s-card ${s.uuid===activeUuid?'active':''}" data-uuid="${s.uuid}" onclick="pick('${s.uuid}')">
           <div class="s-header">
             ${titleHtml}
-            <span class="s-time">${s.time}</span>
+            <span class="s-time">${s.last_time || s.time}</span>
           </div>
           ${preview}
           <div class="s-footer">${tags}<button class="s-del" onclick="event.stopPropagation();doDelete('${s.uuid}')">· 删除</button>${tok}</div>
@@ -639,28 +654,35 @@ async function pick(uuid) {
       </div>`;
   }
 
-  // 功能4: 构建文件路径（显示用 ~，复制用真实完整路径）
-  const displayPath = buildFilePath(s);
+  // 两种续聊方式
   const realPath = s?.filepath || '';
-  const pathChip = displayPath
-    ? `<span class="path-chip" onclick="copyPath(this,'${realPath.replace(/'/g, "\\'")}')" title="点击复制完整路径">${esc(displayPath)}</span>`
+  const vscodeCopyText = realPath
+    ? `${realPath} 读一下这个文件，总结上下文，然后我们沿着这个话题继续聊`
     : '';
+  const resumeWays = `
+    <div class="resume-ways">
+      <div class="resume-way">
+        <span class="resume-way-label"><strong>方式 1</strong> 在终端中继续：</span>
+        <button class="btn-resume" onclick="resume('${uuid}')">跳转终端 →</button>
+      </div>
+      ${vscodeCopyText ? `
+      <div class="resume-way">
+        <span class="resume-way-label"><strong>方式 2</strong> 使用 VSCode 插件，新建会话并输入以下指令：</span>
+        <div class="vscode-hint" onclick="copyVscode(this)" title="点击复制">${esc(vscodeCopyText)}</div>
+      </div>` : ''}
+    </div>`;
 
   document.getElementById('content').innerHTML = `
     <div class="c-head">
       <div class="c-head-row">
         <div class="c-title">${esc(title)}</div>
-        <div class="c-actions">
-          <code class="cmd-chip" onclick="copyResume(this, '${uuid}')" title="点击复制">cd ~ &amp;&amp; claude --resume ${uuid}</code>
-          <button class="btn-resume" onclick="resume('${uuid}')">在终端继续 →</button>
-        </div>
       </div>
       <div class="c-meta">
-        <span class="c-meta-text">${s?.date||''} ${s?.time||''}${model}${s?.message_count?' · '+s.message_count+' 条':''}</span>
+        <span class="c-meta-text">${buildTimeRange(s)}${model}${s?.message_count?' · '+s.message_count+' 条':''}</span>
         ${tags}
-        ${pathChip}
         ${tokenHtml}
       </div>
+      ${resumeWays}
     </div>
     <div class="msgs-wrap">
       <div class="messages" id="msgs">
@@ -721,7 +743,7 @@ async function doDelete(uuid) {
 // Bug2: 移除已无对话的标签 pill
 function pruneEmptyTags() {
   const usedTags = new Set();
-  all.forEach(s => (s.tags||[]).forEach(t => usedTags.add(t)));
+  all.filter(s => s.date).forEach(s => (s.tags||[]).forEach(t => usedTags.add(t)));
   const row = document.getElementById('tagRow');
   if (!row) return;
   row.querySelectorAll('.tag-pill').forEach(b => {
@@ -795,8 +817,9 @@ function buildFilePath(s) {
   return p.replace(/^\/Users\/[^/]+/, '~');
 }
 
-function copyPath(el, path) {
-  navigator.clipboard.writeText(path).then(() => {
+function copyVscode(el) {
+  const text = el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
     el.classList.add('copied');
     const orig = el.textContent;
     el.textContent = '已复制 ✓';
@@ -805,10 +828,26 @@ function copyPath(el, path) {
 }
 
 // ── Utils ─────────────────────────────────────────
+function buildTimeRange(s) {
+  if (!s) return '';
+  const start = [s.date, s.time].filter(Boolean).join(' ');
+  const end = [s.last_date, s.last_time].filter(Boolean).join(' ');
+  if (!start) return '';
+  if (!end || end === start) return start;
+  // 同一天只显示时间部分
+  if (s.date === s.last_date) return `${start} → ${s.last_time}`;
+  return `${start} → ${end}`;
+}
+function localDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
 function fmtDate(d) {
   if (!d) return '';
-  const today = new Date().toISOString().slice(0,10);
-  const yest  = new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const today = localDateStr(new Date());
+  const yest  = localDateStr(new Date(Date.now()-86400000));
   if (d===today) return '今天';
   if (d===yest)  return '昨天';
   const dt = new Date(d+'T00:00:00');

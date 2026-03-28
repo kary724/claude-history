@@ -138,7 +138,8 @@ def parse_session(filepath: Path, titles_cache: dict):
         summary_parts = []
         model = ''
         message_count = 0
-        timestamp = None
+        timestamp = None       # 第一条记录时间（创建时间）
+        last_timestamp = None  # 最后一条记录时间（最后聊天时间）
         total_input_tokens = 0
         total_output_tokens = 0
         total_cache_tokens = 0
@@ -161,8 +162,10 @@ def parse_session(filepath: Path, titles_cache: dict):
                     continue
 
                 rtype = record.get('type', '')
-                if not timestamp and record.get('timestamp'):
-                    timestamp = record['timestamp']
+                if record.get('timestamp'):
+                    if not timestamp:
+                        timestamp = record['timestamp']
+                    last_timestamp = record['timestamp']
 
                 if rtype == 'user':
                     message_count += 1
@@ -188,16 +191,20 @@ def parse_session(filepath: Path, titles_cache: dict):
         tags = auto_tags(first_message + ' ' + summary)
 
         # 时间解析
-        date_str, time_str = '', ''
-        if timestamp:
-            from datetime import datetime
+        from datetime import datetime
+
+        def parse_ts(ts):
+            if not ts:
+                return '', ''
             try:
-                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
                 local_dt = dt.astimezone()
-                date_str = local_dt.strftime('%Y-%m-%d')
-                time_str = local_dt.strftime('%H:%M')
+                return local_dt.strftime('%Y-%m-%d'), local_dt.strftime('%H:%M')
             except Exception:
-                pass
+                return '', ''
+
+        date_str, time_str = parse_ts(timestamp)
+        last_date_str, last_time_str = parse_ts(last_timestamp)
 
         model_short = model.split('/')[-1] if '/' in model else model
 
@@ -210,6 +217,8 @@ def parse_session(filepath: Path, titles_cache: dict):
             'filepath': str(filepath),
             'date': date_str,
             'time': time_str,
+            'last_date': last_date_str,
+            'last_time': last_time_str,
             'first_message': first_message,
             'title': title,
             'summary': summary,
@@ -282,7 +291,10 @@ def get_sessions() -> list:
     if updated:
         save_sessions_cache(sessions_cache)
 
-    sessions.sort(key=lambda x: (x.get('date',''), x.get('time','')), reverse=True)
+    sessions.sort(key=lambda x: (
+        x.get('last_date','') or x.get('date',''),
+        x.get('last_time','') or x.get('time','')
+    ), reverse=True)
     return sessions
 
 
