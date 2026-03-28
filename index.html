@@ -478,13 +478,24 @@ function buildTags() {
   const cnt = {};
   all.forEach(s => (s.tags||[]).forEach(t => cnt[t] = (cnt[t]||0)+1));
   const row = document.getElementById('tagRow');
-  Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([t,n]) => {
+  // 先清空所有非"全部"标签，再重建，避免空标签残留
+  row.querySelectorAll('.tag-pill:not(:first-child)').forEach(b => b.remove());
+  Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([t]) => {
     const b = document.createElement('button');
     b.className = 'tag-pill';
     b.textContent = t;
     b.onclick = () => setTag(t, b);
     row.appendChild(b);
   });
+  // 如果当前选中的标签已不存在，切回全部
+  if (currentTag !== 'all' && !cnt[currentTag]) {
+    currentTag = 'all';
+    row.querySelector('.tag-pill').classList.add('active');
+  } else if (currentTag !== 'all') {
+    row.querySelectorAll('.tag-pill').forEach(b => {
+      b.classList.toggle('active', b.textContent === currentTag);
+    });
+  }
 }
 
 function renderFoot() {
@@ -845,7 +856,7 @@ async function pollForUpdates() {
       const prevUuid = activeUuid;
       const r2 = await fetch('/api/sessions');
       all = await r2.json();
-      buildNewTags();
+      buildTags();
       renderFoot();
       doFilter();
       // 恢复选中状态
@@ -858,24 +869,6 @@ async function pollForUpdates() {
     }
     lastSnapshot = snapshot;
   } catch {}
-}
-
-function buildNewTags() {
-  // 只添加新出现的标签，不重建整个标签栏
-  const row = document.getElementById('tagRow');
-  if (!row) return;
-  const existing = new Set([...row.querySelectorAll('.tag-pill')].map(b => b.textContent));
-  const cnt = {};
-  all.forEach(s => (s.tags||[]).forEach(t => cnt[t] = (cnt[t]||0)+1));
-  Object.keys(cnt).forEach(t => {
-    if (!existing.has(t)) {
-      const b = document.createElement('button');
-      b.className = 'tag-pill';
-      b.textContent = t;
-      b.onclick = () => setTag(t, b);
-      row.appendChild(b);
-    }
-  });
 }
 
 // 初始化快照，然后每 10 秒轮询

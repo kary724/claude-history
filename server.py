@@ -256,9 +256,11 @@ def get_sessions() -> list:
             uuid = s.get('uuid', '')
             if uuid and titles_cache.get(uuid):
                 s['title'] = titles_cache[uuid]
-            # 补全旧缓存中缺失的 filepath
+            # 补全旧缓存中缺失的 filepath，并写回缓存
             if not s.get('filepath'):
                 s['filepath'] = str(f)
+                sessions_cache[f.name]['filepath'] = str(f)
+                updated = True
             sessions.append(s)
         else:
             # 需要重新解析
