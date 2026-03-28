@@ -92,18 +92,26 @@ def generate_title(uuid: str, summary: str, first_message: str) -> str:
 
 # ── 标签规则 ─────────────────────────────────────────
 TAG_RULES = [
-    ("IoT 协议",   ["matter", "zigbee", "蓝牙", "wifi", "thread", "协议", "ble", "mesh"]),
-    ("米家产品",   ["米家", "miot", "物模型", "品类", "接入", "小米"]),
-    ("照明电工",   ["照明", "开关", "灯", "色温", "亮度", "调光", "插座", "电工"]),
-    ("AI 工具",    ["claude", "gpt", "llm", "ai", "模型", "prompt", "skill", "agent"]),
-    ("代码开发",   ["代码", "bug", "api", "接口", "开发", "部署", "测试", "python", "js", "curl"]),
-    ("产品设计",   ["产品", "需求", "功能", "规范", "文档", "prd", "用户", "体验"]),
-    ("工具配置",   ["mcp", "飞书", "vscode", "terminal", "setting", "配置", "安装", "插件"]),
-    ("传感器",     ["传感器", "sensor", "存在", "温度", "湿度", "检测", "识别"]),
-    ("职业发展",   ["简历", "求职", "面试", "岗位", "机器人", "具身", "转型", "职业"]),
-    ("市场调研",   ["竞品", "市场", "调研", "平台", "品牌", "淘宝", "行业"]),
-    ("写作文档",   ["总结", "整理", "写作", "翻译", "文章", "报告", "会议"]),
-    ("生活杂谈",   ["生活", "旅行", "美食", "朋友", "家人", "电影", "音乐", "周末"]),
+    ("Coding",      ["code", "bug", "fix", "error", "function", "class", "api", "sql", "script",
+                     "代码", "报错", "调试", "接口", "函数", "脚本"]),
+    ("AI / LLM",    ["claude", "gpt", "llm", "prompt", "agent", "model", "embedding", "rag",
+                     "anthropic", "openai", "gemini", "ai", "模型", "提示词"]),
+    ("DevOps",      ["deploy", "docker", "ci", "cd", "git", "github", "server", "nginx", "aws",
+                     "部署", "服务器", "容器", "运维"]),
+    ("Frontend",    ["react", "vue", "html", "css", "javascript", "typescript", "ui", "component",
+                     "前端", "页面", "组件", "样式"]),
+    ("Data",        ["database", "sql", "query", "csv", "excel", "pandas", "chart", "analysis",
+                     "数据", "表格", "分析", "查询"]),
+    ("Writing",     ["write", "draft", "summary", "translate", "email", "document", "report",
+                     "写作", "总结", "翻译", "文档", "报告", "邮件"]),
+    ("Tools",       ["mcp", "vscode", "terminal", "install", "config", "setup", "plugin", "brew",
+                     "配置", "安装", "终端", "插件", "工具"]),
+    ("Learning",    ["explain", "how", "what", "why", "difference", "example", "tutorial",
+                     "解释", "怎么", "什么是", "区别", "教程"]),
+    ("Career",      ["resume", "interview", "job", "skill", "career", "salary",
+                     "简历", "面试", "求职", "职业", "薪资"]),
+    ("Life",        ["travel", "food", "health", "hobby", "movie", "music", "book",
+                     "旅行", "美食", "健康", "爱好", "电影", "音乐", "读书"]),
 ]
 
 def auto_tags(text: str) -> list:
