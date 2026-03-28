@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude History</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<style>
+  :root {
+    --bg:        #f0eef8;
+    --surface:   #ffffff;
+    --surface-2: #f7f5fc;
+    --border:    #e4e0f0;
+    --purple:    #7c5cbf;
+    --purple-l:  #9b7fd4;
+    --purple-ll: #ede9f8;
+    --purple-d:  #5a3fa0;
+    --text:      #1e1830;
+    --text-2:    #4a4262;
+    --text-3:    #7a718f;
+    --text-4:    #a89fc0;
+    --green:     #2ecc8e;
+    --orange:    #f59342;
+    --red:       #e55252;
+    --r:         12px;
+    --r-sm:      8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* ── Shell ── */
+  .shell {
+    display: grid;
+    grid-template-columns: 33.33vw 1fr;
+    grid-template-rows: 100vh;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-head {
+    padding: 20px 20px 0;
+  }
+  .sidebar-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.4px;
+    margin-bottom: 14px;
+  }
+  .sidebar-title span { color: var(--purple); }
+
+  .search-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-4);
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 9px 12px 9px 34px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--purple-l); }
+  .search-input::placeholder { color: var(--text-4); }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tag-pill {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-family: inherit;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-3);
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .tag-pill:hover { border-color: var(--purple-l); color: var(--purple); }
+  .tag-pill.active { background: var(--purple); border-color: var(--purple); color: white; }
+
+  .session-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+  }
+  .session-list::-webkit-scrollbar { width: 4px; }
+  .session-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .date-sep {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-4);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 14px 8px 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .date-sep::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .date-sep:first-child { padding-top: 6px; }
+
+  .s-card {
+    padding: 11px 12px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+    transition: background 0.1s, border-color 0.1s;
+    position: relative;
+  }
+  .s-card:hover { background: var(--surface-2); }
+  .s-card.active {
+    background: var(--purple-ll);
+    border-color: color-mix(in srgb, var(--purple) 20%, transparent);
+  }
+
+  .s-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
+  .s-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .s-title.generating { color: var(--text-4); font-style: italic; font-weight: 400; }
+  .s-time { font-size: 10.5px; color: var(--text-4); white-space: nowrap; }
+
+  .s-preview {
+    font-size: 12px;
+    color: var(--text-3);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    margin-bottom: 6px;
+    line-height: 1.5;
+  }
+
+  .s-footer { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .s-tag {
+    font-size: 10px;
+    padding: 1.5px 7px;
+    border-radius: 10px;
+    background: var(--purple-ll);
+    color: var(--purple);
+    font-weight: 500;
+  }
+  .s-card.active .s-tag { background: color-mix(in srgb, var(--purple) 15%, white); }
+  .s-tokens { font-size: 10px; color: var(--text-4); margin-left: auto; }
+
+  /* 卡片删除按钮 */
+  .s-del {
+    display: none;
+    border: none;
+    background: transparent;
+    color: var(--text-4);
+    font-size: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0 2px;
+    transition: color 0.1s;
+    line-height: 1;
+  }
+  .s-card:hover .s-del { display: inline; }
+  .s-del:hover { color: var(--red); }
+
+  /* ── Content ── */
+  .content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .c-head {
+    padding: 20px 28px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .c-head-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .c-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.4;
+    flex: 1;
+    letter-spacing: -0.3px;
+  }
+  .c-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+
+  .btn-resume {
+    padding: 7px 18px;
+    background: var(--purple);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn-resume:hover { background: var(--purple-l); transform: translateY(-1px); }
+
+
+
+  .c-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .c-meta-text { font-size: 12px; color: var(--text-3); }
+
+  .c-tag {
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 10px;
+    background: var(--purple-ll);
+    color: var(--purple);
+    font-weight: 500;
+  }
+
+  .token-stats {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+  }
+  .token-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-3);
+  }
+  .token-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+  .dot-input  { background: var(--purple-l); }
+  .dot-cache  { background: var(--orange); }
+  .dot-output { background: var(--green); }
+
+  /* messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-width: 74%;
+    animation: fadeUp 0.16s ease both;
+  }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+
+  .msg-role { font-size: 10px; color: var(--text-4); text-transform: uppercase; letter-spacing: 0.05em; padding: 0 3px; }
+  .msg-bubble { padding: 10px 14px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+  .msg.user .msg-bubble { background: var(--purple); color: white; border-radius: 14px 14px 3px 14px; }
+  .msg.assistant .msg-bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 14px 14px 14px 3px; color: var(--text); }
+
+  /* empty */
+  .empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-4);
+  }
+  .empty-icon { font-size: 32px; opacity: 0.3; }
+  .empty p { font-size: 13px; }
+
+  /* stats bar at sidebar bottom */
+  .sidebar-foot {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-4);
+    display: flex;
+    gap: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-title">Claude <span>History</span></div>
+      <div class="search-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+        <input class="search-input" type="text" placeholder="搜索对话…" id="search" oninput="doFilter()">
+      </div>
+      <div class="tag-row" id="tagRow">
+        <button class="tag-pill active" onclick="setTag('all',this)">全部</button>
+      </div>
+    </div>
+
+    <div class="session-list" id="list">
+      <div class="empty" style="height:200px"><p>加载中…</p></div>
+    </div>
+
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+
+  <!-- Content -->
+  <main class="content" id="content">
+    <div class="empty">
+      <div class="empty-icon">✦</div>
+      <p>从左侧选择一个对话</p>
+    </div>
+  </main>
+
+</div>
+<script>
+let all = [], currentTag = 'all', activeUuid = null;
+
+// ── Load ──────────────────────────────────────────
+async function load() {
+  const r = await fetch('/api/sessions').catch(() => null);
+  if (!r) { document.getElementById('list').innerHTML = '<div class="empty" style="height:200px"><p>⚠ 无法连接</p></div>'; return; }
+  all = await r.json();
+  buildTags();
+  renderFoot();
+  doFilter();
+  // 自动选中最近的对话
+  if (all.length > 0) pick(all[0].uuid);
+  // 触发没有标题的会话生成
+  requestMissingTitles();
+}
+
+function buildTags() {
+  const cnt = {};
+  all.forEach(s => (s.tags||[]).forEach(t => cnt[t] = (cnt[t]||0)+1));
+  const row = document.getElementById('tagRow');
+  Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([t,n]) => {
+    const b = document.createElement('button');
+    b.className = 'tag-pill';
+    b.textContent = t;
+    b.onclick = () => setTag(t, b);
+    row.appendChild(b);
+  });
+}
+
+function renderFoot() {
+  const total = all.length;
+  const totalTok = all.reduce((s,x) => s + (x.tokens?.total||0), 0);
+  document.getElementById('foot').textContent =
+    `${total} 个对话  ·  共 ${fmtTok(totalTok)} tokens`;
+}
+
+function setTag(t, el) {
+  currentTag = t;
+  document.querySelectorAll('.tag-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  doFilter();
+}
+
+function doFilter() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let items = all;
+  if (currentTag !== 'all') items = items.filter(s => (s.tags||[]).includes(currentTag));
+  if (q) items = items.filter(s =>
+    (s.title||s.first_message||'').toLowerCase().includes(q) ||
+    (s.summary||'').toLowerCase().includes(q)
+  );
+  renderList(items);
+}
+
+function renderList(items) {
+  const list = document.getElementById('list');
+  const valid = items.filter(s => s.uuid && s.date);
+  if (!valid.length) {
+    list.innerHTML = '<div class="empty" style="height:120px"><p>无匹配对话</p></div>';
+    return;
+  }
+  const groups = {};
+  valid.forEach(s => (groups[s.date] = groups[s.date]||[]).push(s));
+
+  let html = '';
+  Object.entries(groups).forEach(([date, arr]) => {
+    html += `<div class="date-sep">${fmtDate(date)}</div>`;
+    arr.forEach(s => {
+      const displayTitle = s.title || (s.first_message && !s.first_message.startsWith('no-msg') && !s.first_message.startsWith('2026') ? s.first_message : null);
+      const titleHtml = displayTitle
+        ? `<span class="s-title">${esc(displayTitle)}</span>`
+        : `<span class="s-title generating" data-uuid="${s.uuid}">生成标题中…</span>`;
+      const tags = (s.tags||[]).map(t=>`<span class="s-tag">${esc(t)}</span>`).join('');
+      const tok = s.tokens?.total ? `<span class="s-tokens">${fmtTok(s.tokens.total)}</span>` : '';
+      const preview = s.summary ? `<div class="s-preview">${esc(s.summary.split('/')[0]||'')}</div>` : '';
+      html += `
+        <div class="s-card ${s.uuid===activeUuid?'active':''}" data-uuid="${s.uuid}" onclick="pick('${s.uuid}')">
+          <div class="s-header">
+            ${titleHtml}
+            <span class="s-time">${s.time}</span>
+          </div>
+          ${preview}
+          <div class="s-footer">${tags}<button class="s-del" onclick="event.stopPropagation();doDelete('${s.uuid}')">· 删除</button>${tok}</div>
+        </div>`;
+    });
+  });
+  list.innerHTML = html;
+}
+
+// ── AI 标题生成 ───────────────────────────────────
+async function requestMissingTitles() {
+  const needTitle = all.filter(s => !s.title && s.summary && s.uuid);
+  // 批量，每次最多5个并发
+  for (let i = 0; i < needTitle.length; i += 5) {
+    const batch = needTitle.slice(i, i+5);
+    await Promise.all(batch.map(s => fetchTitle(s)));
+  }
+}
+
+async function fetchTitle(s) {
+  try {
+    const r = await fetch('/api/generate-title', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ uuid: s.uuid, summary: s.summary, first_message: s.first_message })
+    });
+    const d = await r.json();
+    if (d.title) {
+      s.title = d.title;
+      // 更新 DOM 中对应的标题
+      const el = document.querySelector(`.s-title[data-uuid="${s.uuid}"]`);
+      if (el) {
+        el.textContent = d.title;
+        el.classList.remove('generating');
+        el.removeAttribute('data-uuid');
+      }
+      // 如果当前正在查看此会话，更新右侧标题
+      if (activeUuid === s.uuid) {
+        const ct = document.querySelector('.c-title');
+        if (ct) ct.textContent = d.title;
+      }
+    }
+  } catch {}
+}
+
+// ── 选择会话 ──────────────────────────────────────
+async function pick(uuid) {
+  activeUuid = uuid;
+  doFilter(); // 更新 active 状态
+
+  const s = all.find(x => x.uuid === uuid);
+  const title = s?.title || s?.first_message || '对话详情';
+  const tags = (s?.tags||[]).map(t=>`<span class="c-tag">${esc(t)}</span>`).join('');
+  const model = s?.model ? ` · ${s.model}` : '';
+
+  // Token 统计
+  let tokenHtml = '';
+  if (s?.tokens?.total) {
+    tokenHtml = `
+      <div class="token-stats">
+        <div class="token-chip"><div class="token-dot dot-input"></div>${fmtTok(s.tokens.input)} 输入</div>
+        <div class="token-chip"><div class="token-dot dot-cache"></div>${fmtTok(s.tokens.cache)} 缓存</div>
+        <div class="token-chip"><div class="token-dot dot-output"></div>${fmtTok(s.tokens.output)} 输出</div>
+      </div>`;
+  }
+
+  document.getElementById('content').innerHTML = `
+    <div class="c-head">
+      <div class="c-head-row">
+        <div class="c-title">${esc(title)}</div>
+        <div class="c-actions">
+          <button class="btn-resume" onclick="resume('${uuid}')">在终端继续 →</button>
+        </div>
+      </div>
+      <div class="c-meta">
+        <span class="c-meta-text">${s?.date||''} ${s?.time||''}${model}${s?.message_count?' · '+s.message_count+' 条':''}</span>
+        ${tags}
+        ${tokenHtml}
+      </div>
+    </div>
+    <div class="messages" id="msgs">
+      <div class="empty" style="height:200px"><p>加载中…</p></div>
+    </div>`;
+
+  try {
+    const r = await fetch(`/api/session/${uuid}/messages`);
+    const msgs = await r.json();
+    renderMsgs(msgs);
+  } catch {
+    document.getElementById('msgs').innerHTML = '<div class="empty"><p>⚠ 加载失败</p></div>';
+  }
+}
+
+function renderMsgs(msgs) {
+  const el = document.getElementById('msgs');
+  if (!msgs.length) { el.innerHTML = '<div class="empty"><p>暂无消息</p></div>'; return; }
+  el.innerHTML = msgs.map((m,i)=>`
+    <div class="msg ${m.role}" style="animation-delay:${Math.min(i*.02,.3)}s">
+      <div class="msg-role">${m.role==='user'?'你':'Claude'}</div>
+      <div class="msg-bubble">${esc(trunc(m.text,1200))}</div>
+    </div>`).join('');
+}
+
+async function resume(uuid) {
+  const r = await fetch('/api/open-vscode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uuid})});
+  const d = await r.json();
+  if (!d.ok) alert('无法打开终端');
+}
+
+async function doDelete(uuid) {
+  const r = await fetch('/api/session/'+uuid,{method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) {
+    all = all.filter(s=>s.uuid!==uuid);
+    activeUuid = null;
+    renderFoot();
+    doFilter();
+    document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">✓</div><p>已移到回收站</p></div>';
+  } else {
+    alert('删除失败：'+(d.error||'未知'));
+  }
+}
+
+// ── Utils ─────────────────────────────────────────
+function fmtDate(d) {
+  if (!d) return '';
+  const today = new Date().toISOString().slice(0,10);
+  const yest  = new Date(Date.now()-86400000).toISOString().slice(0,10);
+  if (d===today) return '今天';
+  if (d===yest)  return '昨天';
+  const dt = new Date(d+'T00:00:00');
+  return isNaN(dt) ? d : `${dt.getMonth()+1}月${dt.getDate()}日`;
+}
+
+function fmtTok(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n/1000000).toFixed(1)+'M';
+  if (n >= 1000)    return (n/1000).toFixed(1)+'K';
+  return String(n);
+}
+
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function trunc(s,n) { return s.length<=n?s:s.slice(0,n)+'…'; }
+
+load();
+</script>
+</body>
+</html>

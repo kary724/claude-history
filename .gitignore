@@ -1,0 +1,5 @@
+titles.json
+sessions_cache.json
+*.log
+__pycache__/
+.DS_Store
