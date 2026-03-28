@@ -242,6 +242,25 @@
   }
   .btn-resume:hover { background: var(--purple-l); transform: translateY(-1px); }
 
+  .cmd-chip {
+    padding: 6px 11px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    color: var(--text-3);
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .cmd-chip:hover { border-color: var(--purple-l); color: var(--purple); }
+  .cmd-chip.copied { border-color: #2ecc8e; color: #2ecc8e; }
+
 
 
   .c-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -536,6 +555,7 @@ async function pick(uuid) {
       <div class="c-head-row">
         <div class="c-title">${esc(title)}</div>
         <div class="c-actions">
+          <code class="cmd-chip" onclick="copyResume(this, '${uuid}')" title="点击复制">cd ~ &amp;&amp; claude --resume ${uuid}</code>
           <button class="btn-resume" onclick="resume('${uuid}')">在终端继续 →</button>
         </div>
       </div>
@@ -606,6 +626,14 @@ function fmtTok(n) {
   return String(n);
 }
 
+
+function copyResume(el, uuid) {
+  const cmd = `cd ~ && claude --resume ${uuid}`;
+  navigator.clipboard.writeText(cmd).then(() => {
+    el.classList.add('copied');
+    setTimeout(() => el.classList.remove('copied'), 1500);
+  });
+}
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
