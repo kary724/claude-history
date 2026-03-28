@@ -378,6 +378,13 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == '/api/sessions':
             self.send_json(get_sessions())
+        elif path == '/api/poll':
+            # 返回各目录最新 mtime，前端用来判断是否需要刷新
+            snapshot = {}
+            for d in SESSIONS_DIRS:
+                for f in d.glob('*.jsonl'):
+                    snapshot[f.name] = f.stat().st_mtime
+            self.send_json(snapshot)
         elif path.startswith('/api/session/') and path.endswith('/messages'):
             uuid = path[len('/api/session/'):-len('/messages')]
             self.send_json(get_messages(uuid))

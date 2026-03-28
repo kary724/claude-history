@@ -613,6 +613,61 @@ function esc(s) {
 function trunc(s,n) { return s.length<=n?s:s.slice(0,n)+'…'; }
 
 load();
+
+// ── 自动检测新对话 ─────────────────────────────────
+let lastSnapshot = {};
+
+async function pollForUpdates() {
+  try {
+    const r = await fetch('/api/poll');
+    const snapshot = await r.json();
+    const keys = Object.keys(snapshot);
+    const lastKeys = Object.keys(lastSnapshot);
+
+    const hasNew = keys.some(k => !lastSnapshot[k]);
+    const hasUpdated = keys.some(k => lastSnapshot[k] && snapshot[k] !== lastSnapshot[k]);
+
+    if ((hasNew || hasUpdated) && lastKeys.length > 0) {
+      // 有新文件或文件有更新，重新加载列表
+      const prevUuid = activeUuid;
+      const r2 = await fetch('/api/sessions');
+      all = await r2.json();
+      buildNewTags();
+      renderFoot();
+      doFilter();
+      // 恢复选中状态
+      if (prevUuid && all.find(s => s.uuid === prevUuid)) {
+        activeUuid = prevUuid;
+        doFilter();
+      }
+      // 触发新会话的标题生成
+      requestMissingTitles();
+    }
+    lastSnapshot = snapshot;
+  } catch {}
+}
+
+function buildNewTags() {
+  // 只添加新出现的标签，不重建整个标签栏
+  const row = document.getElementById('tagRow');
+  if (!row) return;
+  const existing = new Set([...row.querySelectorAll('.tag-pill')].map(b => b.textContent));
+  const cnt = {};
+  all.forEach(s => (s.tags||[]).forEach(t => cnt[t] = (cnt[t]||0)+1));
+  Object.keys(cnt).forEach(t => {
+    if (!existing.has(t)) {
+      const b = document.createElement('button');
+      b.className = 'tag-pill';
+      b.textContent = t;
+      b.onclick = () => setTag(t, b);
+      row.appendChild(b);
+    }
+  });
+}
+
+// 初始化快照，然后每 10 秒轮询
+fetch('/api/poll').then(r => r.json()).then(s => { lastSnapshot = s; });
+setInterval(pollForUpdates, 10000);
 </script>
 </body>
 </html>
