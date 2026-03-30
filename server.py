@@ -372,14 +372,30 @@ def get_messages(uuid: str) -> list:
 
 
 def open_terminal(uuid: str) -> bool:
-    script = f'''
-        tell application "Terminal"
-            activate
-            do script "claude --resume {uuid}"
-        end tell
-    '''
+    import platform
+    system = platform.system()
     try:
-        subprocess.run(['osascript', '-e', script], check=True)
+        if system == 'Darwin':
+            script = f'''
+                tell application "Terminal"
+                    activate
+                    do script "claude --resume {uuid}"
+                end tell
+            '''
+            subprocess.run(['osascript', '-e', script], check=True)
+        elif system == 'Windows':
+            subprocess.Popen(
+                ['cmd', '/c', 'start', 'cmd', '/k', f'claude --resume {uuid}'],
+                shell=False
+            )
+        else:
+            # Linux：尝试常见终端
+            for term in ['gnome-terminal', 'xterm', 'konsole']:
+                try:
+                    subprocess.Popen([term, '--', 'bash', '-c', f'claude --resume {uuid}; exec bash'])
+                    break
+                except FileNotFoundError:
+                    continue
         return True
     except Exception as e:
         print(f"Error opening Terminal: {e}")
@@ -509,8 +525,12 @@ class Handler(BaseHTTPRequestHandler):
             for d in SESSIONS_DIRS:
                 for f in d.glob('*.jsonl'):
                     if uuid in f.name:
-                        subprocess.run(['osascript', '-e',
-                            f'tell application "Finder" to delete POSIX file "{f}"'], check=True)
+                        import platform
+                        if platform.system() == 'Darwin':
+                            subprocess.run(['osascript', '-e',
+                                f'tell application "Finder" to delete POSIX file "{f}"'], check=True)
+                        else:
+                            f.unlink()  # Windows/Linux 直接删除
                         deleted = True
                         break
                 if deleted:
