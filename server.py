@@ -73,7 +73,7 @@ Summary: {summary[:250]}
 
 Tasks (reply in JSON only, no explanation):
 1. "title": A concise title in 8 words or less, in the same language as the conversation.
-2. "tag": ONE topic tag. Reuse an existing tag if it fits well (existing: {existing_str}). Otherwise create a new short tag (1-3 words, English preferred). Keep total unique tags across all sessions under 20.
+2. "tag": ONE specific topic tag reflecting the core subject (e.g. IoT协议, 蓝牙, 产品开发, 照明电工, 具身智能, MIoT规范). Reuse an existing tag if it fits well (existing: {existing_str}). Otherwise create a new short tag (1-3 words, in the same language as the conversation). Prefer specific topics over generic categories.
 
 Reply format: {{"title": "...", "tag": "..."}}"""
 
@@ -176,7 +176,7 @@ def parse_session(filepath: Path, titles_cache: dict):
                     if text:
                         if len(summary_parts) < 3:
                             summary_parts.append(text[:100])
-                        full_text_parts.append(text[:500])
+                        full_text_parts.append(text[:2000])
 
                 elif rtype == 'assistant':
                     message_count += 1
@@ -194,7 +194,7 @@ def parse_session(filepath: Path, titles_cache: dict):
                             if isinstance(item, dict) and item.get('type') == 'text':
                                 t = item.get('text', '').strip()
                                 if t:
-                                    full_text_parts.append(t[:500])
+                                    full_text_parts.append(t[:2000])
                     elif isinstance(a_content, str) and a_content.strip():
                         full_text_parts.append(a_content.strip()[:500])
 
@@ -226,7 +226,7 @@ def parse_session(filepath: Path, titles_cache: dict):
         title = titles_cache.get(uuid, '')
 
         # 全文索引：用换行拼接，限制总长度避免缓存过大
-        full_text = '\n'.join(full_text_parts)[:20000]
+        full_text = '\n'.join(full_text_parts)[:100000]
 
         return {
             'uuid': uuid,
@@ -277,7 +277,7 @@ def get_sessions() -> list:
     for f in all_files:
         mtime = str(f.stat().st_mtime)
         cached = sessions_cache.get(f.name)
-        if cached and cached.get('_mtime') == mtime:
+        if cached and cached.get('_mtime') == mtime and 'full_text' in cached:
             # 缓存命中，直接用，但更新 title
             s = cached.copy()
             uuid = s.get('uuid', '')
@@ -342,7 +342,18 @@ def get_messages(uuid: str) -> list:
             content = record.get('message', {}).get('content', '')
             text = ''
             if rtype == 'user':
+                # 先尝试提取纯文字，失败时回退到原始内容
                 text = extract_user_text(content)
+                if not text:
+                    # 包含系统标签的消息，直接取原始字符串
+                    if isinstance(content, str):
+                        text = re.sub(r'<[^>]+>', '', content).strip()
+                    elif isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict) and item.get('type') == 'text':
+                                text = re.sub(r'<[^>]+>', '', item.get('text', '')).strip()
+                                if text:
+                                    break
             else:
                 if isinstance(content, list):
                     parts = [item.get('text', '') for item in content

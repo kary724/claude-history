@@ -7,18 +7,18 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
 <style>
   :root {
-    --bg:        #f0eef8;
+    --bg:        #f0eeeb;
     --surface:   #ffffff;
-    --surface-2: #f7f5fc;
-    --border:    #e4e0f0;
-    --purple:    #7c5cbf;
-    --purple-l:  #9b7fd4;
-    --purple-ll: #ede9f8;
-    --purple-d:  #5a3fa0;
-    --text:      #1e1830;
-    --text-2:    #4a4262;
-    --text-3:    #7a718f;
-    --text-4:    #a89fc0;
+    --surface-2: #faf9f7;
+    --border:    #e8e5e0;
+    --purple:    #f29055;
+    --purple-l:  #f5aa7a;
+    --purple-ll: #fff5ef;
+    --purple-d:  #e07540;
+    --text:      #1a1a1a;
+    --text-2:    #444444;
+    --text-3:    #888888;
+    --text-4:    #bbbbbb;
     --green:     #2ecc8e;
     --orange:    #f59342;
     --red:       #e55252;
@@ -52,9 +52,9 @@
   }
   .sidebar-title {
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 800;
     color: var(--text);
-    letter-spacing: -0.4px;
+    letter-spacing: -0.5px;
     margin-bottom: 14px;
   }
   .sidebar-title span { color: var(--purple); }
@@ -71,6 +71,22 @@
     color: var(--text-4);
     pointer-events: none;
   }
+  .search-clear {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-4);
+    padding: 2px;
+    display: none;
+    line-height: 1;
+  }
+  .search-clear:hover { color: var(--text-2); }
+  .search-wrap.has-value .search-clear { display: block; }
+  .search-wrap.has-value .search-input { padding-right: 28px; }
   .search-input {
     width: 100%;
     padding: 9px 12px 9px 34px;
@@ -147,8 +163,8 @@
   }
   .s-card:hover { background: var(--surface-2); }
   .s-card.active {
-    background: var(--purple-ll);
-    border-color: color-mix(in srgb, var(--purple) 20%, transparent);
+    background: #fff3eb;
+    border-color: rgba(232,123,53,0.2);
   }
 
   .s-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
@@ -180,13 +196,14 @@
     font-size: 10px;
     padding: 1.5px 7px;
     border-radius: 10px;
-    background: var(--purple-ll);
-    color: var(--purple);
+    background: #fff3eb;
+    color: #e87b35;
     font-weight: 500;
   }
   .s-card.active .s-tag { background: color-mix(in srgb, var(--purple) 15%, white); }
   .s-tokens { font-size: 10px; color: var(--text-4); margin-left: auto; }
-  mark { background: #fff0a0; color: var(--text); border-radius: 2px; padding: 0 1px; font-style: normal; }
+  mark { background: #ffedd5; color: var(--text); border-radius: 2px; padding: 0 1px; font-style: normal; }
+  .msg.user mark { background: rgba(255,255,255,0.35); color: white; }
 
   /* 卡片删除按钮 */
   .s-del {
@@ -225,12 +242,12 @@
     margin-bottom: 10px;
   }
   .c-title {
-    font-size: 18px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 800;
     color: var(--text);
     line-height: 1.4;
     flex: 1;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.4px;
   }
   .c-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 
@@ -304,7 +321,7 @@
     transition: background 0.15s, transform 0.1s;
     white-space: nowrap;
   }
-  .btn-resume:hover { background: var(--purple-l); transform: translateY(-1px); }
+  .btn-resume:hover { background: var(--purple-d); transform: translateY(-1px); }
 
   .cmd-chip {
     padding: 6px 11px;
@@ -334,8 +351,8 @@
     font-size: 11px;
     padding: 2px 9px;
     border-radius: 10px;
-    background: var(--purple-ll);
-    color: var(--purple);
+    background: #fff3eb;
+    color: #e87b35;
     font-weight: 500;
   }
 
@@ -356,8 +373,8 @@
     height: 7px;
     border-radius: 50%;
   }
-  .dot-input  { background: var(--purple-l); }
-  .dot-cache  { background: var(--orange); }
+  .dot-input  { background: var(--purple); }
+  .dot-cache  { background: #a8c9f0; }
   .dot-output { background: var(--green); }
 
   /* messages */
@@ -495,7 +512,8 @@
       <div class="sidebar-title">Claude <span>History</span></div>
       <div class="search-wrap">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
-        <input class="search-input" type="text" placeholder="搜索对话…" id="search" oninput="doFilter()">
+        <input class="search-input" type="text" placeholder="搜索对话…" id="search" oninput="onSearchInput()">
+        <button class="search-clear" onclick="clearSearch()" title="清除">✕</button>
       </div>
       <div class="tag-row" id="tagRow">
         <button class="tag-pill active" onclick="setTag('all',this)">全部</button>
@@ -524,7 +542,7 @@
 
 </div>
 <script>
-let all = [], currentTag = 'all', activeUuid = null;
+let all = [], currentTag = 'all', activeUuid = null, activeSearchQ = '';
 
 // ── Load ──────────────────────────────────────────
 async function load() {
@@ -585,8 +603,21 @@ function setTag(t, el) {
   doFilter();
 }
 
+function onSearchInput() {
+  const q = document.getElementById('search').value;
+  document.querySelector('.search-wrap').classList.toggle('has-value', q.length > 0);
+  doFilter();
+}
+
+function clearSearch() {
+  document.getElementById('search').value = '';
+  document.querySelector('.search-wrap').classList.remove('has-value');
+  doFilter();
+}
+
 function doFilter() {
   const q = document.getElementById('search').value.toLowerCase().trim();
+  activeSearchQ = q;
   let items = all;
   if (currentTag !== 'all') items = items.filter(s => (s.tags||[]).includes(currentTag));
   if (q) items = items.filter(s =>
@@ -804,11 +835,23 @@ async function pick(uuid) {
 function renderMsgs(msgs) {
   const el = document.getElementById('msgs');
   if (!msgs.length) { el.innerHTML = '<div class="empty"><p>暂无消息</p></div>'; return; }
-  el.innerHTML = msgs.map((m,i)=>`
+  const q = activeSearchQ;
+  el.innerHTML = msgs.map((m,i)=>{
+    const text = trunc(m.text, 1200);
+    const content = q ? highlight(text, q) : esc(text);
+    return `
     <div class="msg ${m.role}" style="animation-delay:${Math.min(i*.02,.3)}s">
       <div class="msg-role">${m.role==='user'?'你':'Claude'}</div>
-      <div class="msg-bubble">${esc(trunc(m.text,1200))}</div>
-    </div>`).join('');
+      <div class="msg-bubble">${content}</div>
+    </div>`;
+  }).join('');
+  // 有搜索词时，自动滚动到第一个高亮
+  if (q) {
+    requestAnimationFrame(() => {
+      const first = el.querySelector('mark');
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
 }
 
 async function resume(uuid) {
