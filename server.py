@@ -154,6 +154,8 @@ def parse_session(filepath: Path, titles_cache: dict):
             uuid = name[-36:] if len(name) >= 36 else name
             first_message = name
 
+        full_text_parts = []  # 用于全文搜索索引
+
         with open(filepath, 'r', encoding='utf-8') as f:
             for line in f:
                 try:
@@ -171,8 +173,10 @@ def parse_session(filepath: Path, titles_cache: dict):
                     message_count += 1
                     content = record.get('message', {}).get('content', '')
                     text = extract_user_text(content)
-                    if text and len(summary_parts) < 3:
-                        summary_parts.append(text[:100])
+                    if text:
+                        if len(summary_parts) < 3:
+                            summary_parts.append(text[:100])
+                        full_text_parts.append(text[:500])
 
                 elif rtype == 'assistant':
                     message_count += 1
@@ -183,6 +187,16 @@ def parse_session(filepath: Path, titles_cache: dict):
                     total_input_tokens  += usage.get('input_tokens', 0)
                     total_output_tokens += usage.get('output_tokens', 0)
                     total_cache_tokens  += usage.get('cache_read_input_tokens', 0)
+                    # 提取 assistant 回复用于全文搜索
+                    a_content = msg.get('content', '')
+                    if isinstance(a_content, list):
+                        for item in a_content:
+                            if isinstance(item, dict) and item.get('type') == 'text':
+                                t = item.get('text', '').strip()
+                                if t:
+                                    full_text_parts.append(t[:500])
+                    elif isinstance(a_content, str) and a_content.strip():
+                        full_text_parts.append(a_content.strip()[:500])
 
         if not uuid:
             return None
@@ -211,6 +225,9 @@ def parse_session(filepath: Path, titles_cache: dict):
         # 标题：优先用缓存
         title = titles_cache.get(uuid, '')
 
+        # 全文索引：用换行拼接，限制总长度避免缓存过大
+        full_text = '\n'.join(full_text_parts)[:20000]
+
         return {
             'uuid': uuid,
             'filename': filepath.name,
@@ -222,6 +239,7 @@ def parse_session(filepath: Path, titles_cache: dict):
             'first_message': first_message,
             'title': title,
             'summary': summary,
+            'full_text': full_text,
             'model': model_short,
             'tags': tags,
             'message_count': message_count,
@@ -421,6 +439,24 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/open-vscode':
             ok = open_terminal(body.get('uuid', ''))
             self.send_json({'ok': ok})
+
+        elif path == '/api/rename':
+            uuid = body.get('uuid', '')
+            new_title = body.get('title', '').strip()
+            if not re.match(r'^[0-9a-f-]{36}$', uuid) or not new_title:
+                self.send_json({'ok': False, 'error': 'invalid params'}, 400)
+                return
+            # 写入 titles.json
+            cache = load_titles_cache()
+            cache[uuid] = new_title
+            save_titles_cache(cache)
+            # 同步更新 sessions_cache
+            sc = load_sessions_cache()
+            for v in sc.values():
+                if isinstance(v, dict) and v.get('uuid') == uuid:
+                    v['title'] = new_title
+            save_sessions_cache(sc)
+            self.send_json({'ok': True})
 
         elif path == '/api/generate-title':
             uuid = body.get('uuid', '')

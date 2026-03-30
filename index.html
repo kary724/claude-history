@@ -186,6 +186,7 @@
   }
   .s-card.active .s-tag { background: color-mix(in srgb, var(--purple) 15%, white); }
   .s-tokens { font-size: 10px; color: var(--text-4); margin-left: auto; }
+  mark { background: #fff0a0; color: var(--text); border-radius: 2px; padding: 0 1px; font-style: normal; }
 
   /* 卡片删除按钮 */
   .s-del {
@@ -232,6 +233,63 @@
     letter-spacing: -0.3px;
   }
   .c-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+
+  /* 重命名 */
+  .btn-rename {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 4px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-4);
+    cursor: pointer;
+    transition: color 0.15s;
+    vertical-align: middle;
+    margin-left: 6px;
+    flex-shrink: 0;
+  }
+  .btn-rename:hover { color: var(--purple); }
+  .rename-form {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex: 1;
+  }
+  .rename-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--purple-l);
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    color: var(--text);
+    outline: none;
+    background: var(--surface);
+    letter-spacing: -0.3px;
+  }
+  .rename-confirm {
+    padding: 6px 14px;
+    background: var(--purple);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .rename-cancel {
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-3);
+    cursor: pointer;
+  }
 
   .btn-resume {
     padding: 7px 18px;
@@ -533,12 +591,13 @@ function doFilter() {
   if (currentTag !== 'all') items = items.filter(s => (s.tags||[]).includes(currentTag));
   if (q) items = items.filter(s =>
     (s.title||s.first_message||'').toLowerCase().includes(q) ||
-    (s.summary||'').toLowerCase().includes(q)
+    (s.summary||'').toLowerCase().includes(q) ||
+    (s.full_text||'').toLowerCase().includes(q)
   );
-  renderList(items);
+  renderList(items, q);
 }
 
-function renderList(items) {
+function renderList(items, q) {
   const list = document.getElementById('list');
   const valid = items.filter(s => s.uuid && s.date);
   if (!valid.length) {
@@ -554,23 +613,57 @@ function renderList(items) {
     arr.forEach(s => {
       const displayTitle = s.title || (s.first_message && !s.first_message.startsWith('no-msg') && !s.first_message.startsWith('2026') ? s.first_message : null);
       const titleHtml = displayTitle
-        ? `<span class="s-title">${esc(displayTitle)}</span>`
+        ? `<span class="s-title">${q ? highlight(displayTitle, q) : esc(displayTitle)}</span>`
         : `<span class="s-title generating" data-uuid="${s.uuid}">生成标题中…</span>`;
       const tags = (s.tags||[]).map(t=>`<span class="s-tag">${esc(t)}</span>`).join('');
       const tok = s.tokens?.total ? `<span class="s-tokens">${fmtTok(s.tokens.total)}</span>` : '';
-      const preview = s.summary ? `<div class="s-preview">${esc(s.summary.split('/')[0]||'')}</div>` : '';
+
+      // 搜索时优先显示匹配片段，否则显示 summary
+      let previewHtml = '';
+      if (q) {
+        const snippet = getSnippet(s, q);
+        previewHtml = snippet ? `<div class="s-preview">${snippet}</div>` : '';
+      } else {
+        previewHtml = s.summary ? `<div class="s-preview">${esc(s.summary.split('/')[0]||'')}</div>` : '';
+      }
+
       html += `
         <div class="s-card ${s.uuid===activeUuid?'active':''}" data-uuid="${s.uuid}" onclick="pick('${s.uuid}')">
           <div class="s-header">
             ${titleHtml}
             <span class="s-time">${s.last_time || s.time}</span>
           </div>
-          ${preview}
+          ${previewHtml}
           <div class="s-footer">${tags}<button class="s-del" onclick="event.stopPropagation();doDelete('${s.uuid}')">· 删除</button>${tok}</div>
         </div>`;
     });
   });
   list.innerHTML = html;
+}
+
+// 从 full_text 或 summary 中提取包含关键词的片段并高亮
+function getSnippet(s, q) {
+  const sources = [
+    s.title || s.first_message || '',
+    s.summary || '',
+    s.full_text || ''
+  ];
+  for (const src of sources) {
+    const idx = src.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) continue;
+    const start = Math.max(0, idx - 30);
+    const end = Math.min(src.length, idx + q.length + 60);
+    const raw = (start > 0 ? '…' : '') + src.slice(start, end) + (end < src.length ? '…' : '');
+    return highlight(raw, q);
+  }
+  return '';
+}
+
+// 高亮关键词（转义后替换）
+function highlight(text, q) {
+  const escaped = esc(text);
+  const qEsc = esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escaped.replace(new RegExp(qEsc, 'gi'), m => `<mark>${m}</mark>`);
 }
 
 // ── AI 标题 + 标签生成 ────────────────────────────
@@ -657,7 +750,7 @@ async function pick(uuid) {
   // 两种续聊方式
   const realPath = s?.filepath || '';
   const vscodeCopyText = realPath
-    ? `${realPath} 读一下这个文件，总结上下文，然后我们沿着这个话题继续聊`
+    ? `${realPath} 读这个文件并总结上下文，然后我们沿着这个话题继续聊`
     : '';
   const resumeWays = `
     <div class="resume-ways">
@@ -675,7 +768,7 @@ async function pick(uuid) {
   document.getElementById('content').innerHTML = `
     <div class="c-head">
       <div class="c-head-row">
-        <div class="c-title">${esc(title)}</div>
+        <div class="c-title" id="cTitle">${esc(title)}<button class="btn-rename" onclick="startRename('${uuid}')" title="重命名"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button></div>
       </div>
       <div class="c-meta">
         <span class="c-meta-text">${buildTimeRange(s)}${model}${s?.message_count?' · '+s.message_count+' 条':''}</span>
@@ -738,6 +831,73 @@ async function doDelete(uuid) {
   } else {
     alert('删除失败：'+(d.error||'未知'));
   }
+}
+
+// ── 重命名 ───────────────────────────────────────────
+function startRename(uuid) {
+  const s = all.find(x => x.uuid === uuid);
+  const currentTitle = s?.title || s?.first_message || '';
+  const titleEl = document.getElementById('cTitle');
+  if (!titleEl) return;
+
+  // 用输入框替换标题
+  const form = document.createElement('div');
+  form.className = 'rename-form';
+  form.innerHTML = `
+    <input class="rename-input" id="renameInput" value="${esc(currentTitle)}" maxlength="80">
+    <button class="rename-confirm" onclick="confirmRename('${uuid}')">保存</button>
+    <button class="rename-cancel" onclick="cancelRename('${esc(currentTitle)}')">取消</button>`;
+  titleEl.replaceWith(form);
+  document.getElementById('renameInput').focus();
+  document.getElementById('renameInput').select();
+  // 回车保存
+  document.getElementById('renameInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmRename(uuid);
+    if (e.key === 'Escape') cancelRename(currentTitle);
+  });
+}
+
+async function confirmRename(uuid) {
+  const input = document.getElementById('renameInput');
+  if (!input) return;
+  const newTitle = input.value.trim();
+  if (!newTitle) return;
+
+  const r = await fetch('/api/rename', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({uuid, title: newTitle})
+  });
+  const d = await r.json();
+  if (d.ok) {
+    // 更新内存
+    const s = all.find(x => x.uuid === uuid);
+    if (s) s.title = newTitle;
+    // 恢复标题显示
+    restoreTitle(newTitle, uuid);
+    // 更新左侧列表卡片标题
+    doFilter();
+  }
+}
+
+function cancelRename(originalTitle) {
+  restoreTitle(originalTitle, activeUuid);
+}
+
+const RENAME_BTN_HTML = (uuid) => `<button class="btn-rename" onclick="startRename('${uuid}')" title="重命名"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>`;
+
+function restoreTitle(title, uuid) {
+  const form = document.querySelector('.rename-form');
+  if (!form) return;
+  const titleEl = document.createElement('div');
+  titleEl.className = 'c-title';
+  titleEl.id = 'cTitle';
+  titleEl.innerHTML = escHtml(title) + RENAME_BTN_HTML(uuid);
+  form.replaceWith(titleEl);
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // Bug2: 移除已无对话的标签 pill
